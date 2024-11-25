@@ -30,7 +30,7 @@ BATCH_SIZE = 32
 def load_datasets(partition_id: int):
     fds = FederatedDataset(dataset="cifar10", partitioners={"train": NUM_CLIENTS})
     partition = fds.load_partition(partition_id)
-    # Divide data on each node: 80% train, 20% test
+    # Divide Data on each node: 80% train, 20% test
     partition_train_test = partition.train_test_split(test_size=0.2, seed=42)
     pytorch_transforms = transforms.Compose(
         [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
@@ -188,10 +188,10 @@ def client_fn(context: Context) -> Client:
     # Load model
     net = Net().to(DEVICE)
 
-    # Load data (CIFAR-10)
+    # Load Data (CIFAR-10)
     # Note: each client gets a different trainloader/valloader, so each client
-    # will train and evaluate on their own unique data partition
-    # Read the node_config to fetch data partition associated to this node
+    # will train and evaluate on their own unique Data partition
+    # Read the node_config to fetch Data partition associated to this node
     partition_id = context.node_config["partition-id"]
     trainloader, valloader, _ = load_datasets(partition_id=partition_id)
 
