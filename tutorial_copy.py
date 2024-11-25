@@ -149,7 +149,7 @@ loss, accuracy = test(net, testloader)
 print(f"Final test set performance:\n\tloss {loss}\n\taccuracy {accuracy}")
 
 # TODO: understand what it is
-torch.save(net.state_dict(), "initial_model.pth")
+torch.save(net.state_dict(), "Models/initial_model.pth")
 print("Model saved to initial_model.pth")
 
 def set_parameters(net, parameters: List[np.ndarray]):
@@ -174,7 +174,7 @@ class FlowerClient(NumPyClient):
         set_parameters(self.net, parameters)
         train(self.net, self.trainloader, epochs=1)
         # save the model after training
-        torch.save(self.net.state_dict(), "federated_model.pth")
+        torch.save(self.net.state_dict(), "Models/federated_model.pth")
         return get_parameters(self.net), len(self.trainloader), {}
 
     def evaluate(self, parameters, config):
