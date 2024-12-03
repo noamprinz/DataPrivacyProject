@@ -7,6 +7,7 @@ from datasets import load_dataset
 
 from flwr_datasets.partitioner import IidPartitioner
 from flwr_datasets import FederatedDataset
+from mpl_toolkits.mplot3d.proj3d import transform
 from torch.utils.data import DataLoader
 from torchvision import transforms as transforms
 
@@ -14,25 +15,22 @@ from torchvision import transforms as transforms
 BATCH_SIZE = 32
 NUM_PARTITIONS = 10
 
-def load_datasets(dataset_path, partition_id):
+def load_local_datasets(partition_id, dataset_path, num_partitions):
     # create dataset
     dataset = load_dataset("imagefolder", data_dir=dataset_path, drop_labels=False)
     # load partitioneer
-    partitioner = IidPartitioner(num_partitions=NUM_PARTITIONS)
+    partitioner = IidPartitioner(num_partitions=num_partitions)
     # set dataset to partitioneer
     partitioner.dataset = dataset['train']
     # partition the dataset
     partition = partitioner.load_partition(partition_id=partition_id)
     # Divide Data on each node: 80% train, 20% test
-    partition_train_test = partition.train_test_split(test_size=0.2, seed=42)
+    partition_train_test = partition.train_test_split(test_size=0.2, seed=16)
     pytorch_transforms = transforms.Compose(
         [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
     )
 
     def apply_transforms(batch):
-        # Instead of passing transforms to CIFAR10(..., transform=transform)
-        # we will use this function to dataset.with_transform(apply_transforms)
-        # The transforms object is exactly the same
         batch["image"] = [pytorch_transforms(img) for img in batch["image"]]
         return batch
 
@@ -40,7 +38,9 @@ def load_datasets(dataset_path, partition_id):
     partition_train_test = partition_train_test.with_transform(apply_transforms)
     trainloader = DataLoader(partition_train_test["train"], batch_size=BATCH_SIZE, shuffle=True)
     valloader = DataLoader(partition_train_test["test"], batch_size=BATCH_SIZE)
-    return trainloader, valloader
+    test_set = dataset['test'].with_transform(apply_transforms)
+    testloader = DataLoader(test_set, batch_size=BATCH_SIZE)
+    return trainloader, valloader, testloader
 
 
 
@@ -73,8 +73,9 @@ def flwr_load_datasets(partition_id: int):
 
 if __name__ == '__main__':
     dataset_path = "Data/bccd_dataset"
+    NUM_CLIENTS = 10
 
-    trainloader, _ = load_datasets(dataset_path, partition_id=0)
+    trainloader, a, b = load_local_datasets(partition_id=0, dataset_path=dataset_path, num_partitions=NUM_CLIENTS)
 
     batch = next(iter(trainloader))
     images, labels = batch["image"], batch["label"]
