@@ -25,16 +25,40 @@ class Net(nn.Module):
         self.fc1 = nn.Linear(16 * 57 * 77, 120)
         self.fc2 = nn.Linear(120, 84)
         self.fc3 = nn.Linear(84, 10)
+        # TODO: Change output to 4 classes
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
-        x = x.view(-1, 16 * 57 * 77)
+        x = x.reshape(-1, 16 * 57 * 77)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
         return x
 
+class NewNet(nn.Module):
+    def __init__(self) -> None:
+        super(NewNet, self).__init__()
+        self.conv_layers = nn.Sequential(
+        nn.Conv2d(3, 6, 5),
+        nn.ReLU(),
+        nn.MaxPool2d(2, 2),
+        nn.Conv2d(6, 16, 5),
+        nn.ReLU(),
+        nn.MaxPool2d(2, 2))
+        self.fc_layers = nn.Sequential(
+        nn.Linear(16 * 57 * 77, 120),
+        nn.ReLU(),
+        nn.Linear(120, 84),
+        nn.ReLU(),
+        nn.Linear(84, 4))
+        # TODO: Change output to 4 classes
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.conv_layers(x)
+        x = x.reshape(-1, 16 * 57 * 77)
+        x = self.fc_layers(x)
+        return x
 
 def get_parameters(net) -> List[np.ndarray]:
     return [val.cpu().numpy() for _, val in net.state_dict().items()]

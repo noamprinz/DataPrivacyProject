@@ -7,7 +7,6 @@ from datasets import load_dataset
 
 from flwr_datasets.partitioner import IidPartitioner
 from flwr_datasets import FederatedDataset
-from mpl_toolkits.mplot3d.proj3d import transform
 from torch.utils.data import DataLoader
 from torchvision import transforms as transforms
 
@@ -18,6 +17,9 @@ NUM_PARTITIONS = 10
 def load_local_datasets(partition_id, dataset_path, num_partitions):
     # create dataset
     dataset = load_dataset("imagefolder", data_dir=dataset_path, drop_labels=False)
+    # get class names
+    class_names = dataset['train'].features['label'].names
+    class_dict = {i: class_names[i] for i in range(len(class_names))}
     # load partitioneer
     partitioner = IidPartitioner(num_partitions=num_partitions)
     # set dataset to partitioneer
@@ -39,8 +41,8 @@ def load_local_datasets(partition_id, dataset_path, num_partitions):
     trainloader = DataLoader(partition_train_test["train"], batch_size=BATCH_SIZE, shuffle=True)
     valloader = DataLoader(partition_train_test["test"], batch_size=BATCH_SIZE)
     test_set = dataset['test'].with_transform(apply_transforms)
-    testloader = DataLoader(test_set, batch_size=BATCH_SIZE)
-    return trainloader, valloader, testloader
+    testloader = DataLoader(test_set, shuffle=True, batch_size=BATCH_SIZE)
+    return trainloader, valloader, testloader, class_dict
 
 
 
@@ -75,7 +77,7 @@ if __name__ == '__main__':
     dataset_path = "Data/bccd_dataset"
     NUM_CLIENTS = 10
 
-    trainloader, a, b = load_local_datasets(partition_id=0, dataset_path=dataset_path, num_partitions=NUM_CLIENTS)
+    trainloader, a, b, c = load_local_datasets(partition_id=0, dataset_path=dataset_path, num_partitions=NUM_CLIENTS)
 
     batch = next(iter(trainloader))
     images, labels = batch["image"], batch["label"]

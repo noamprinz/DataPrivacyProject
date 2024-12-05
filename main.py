@@ -6,16 +6,17 @@ import flwr
 
 from flwr.client import Client, ClientApp, NumPyClient
 from flwr.server import ServerApp, ServerConfig, ServerAppComponents
-from flwr.server.strategy import FedAvg, FedAdagrad
+from flwr.server.strategy import FedAvg, DifferentialPrivacyClientSideFixedClipping
 from flwr.simulation import run_simulation
 from flwr.common import ndarrays_to_parameters, NDArrays, Scalar, Context
+from flwr.client.mod import LocalDpMod
 
 import model
 from data_util import load_local_datasets
 
 DATASET_PATH = "Data/bccd_dataset"
 
-from model import Net, DEVICE, DATASET_PATH, NUM_PARTITIONS, set_parameters, test
+from model import NewNet as Net, DEVICE, DATASET_PATH, set_parameters, test
 
 DEVICE = torch.device("cpu")  # Try "cuda" to train on GPU
 print(f"Training on {DEVICE}")
@@ -57,7 +58,7 @@ def client_fn(context: Context) -> Client:
 
     #TODO: replace global variable with context variable
 
-    trainloader, valloader, _ = load_local_datasets(partition_id, DATASET_PATH, num_partitions)
+    trainloader, valloader, _, _ = load_local_datasets(partition_id, DATASET_PATH, num_partitions)
     return FlowerClient(partition_id, net, trainloader, valloader).to_client()
 
 
@@ -67,7 +68,7 @@ def evaluate_server(
     config: Dict[str, Scalar],
 ) -> Optional[Tuple[float, Dict[str, Scalar]]]:
     net = Net().to(DEVICE)
-    _, _, testloader = load_local_datasets(0, DATASET_PATH, NUM_PARTITIONS)
+    _, _, testloader, _ = load_local_datasets(0, DATASET_PATH, NUM_PARTITIONS)
     set_parameters(net, parameters)  # Update model with the latest parameters
     loss, accuracy = test(net, testloader)
     torch.save(net.state_dict(), f"{OUT_DIR}/{server_round}_model.pth")
@@ -79,9 +80,9 @@ def server_fn(context: Context) -> ServerAppComponents:
     # Create the FedAvg strategy
     strategy = FedAvg(
         fraction_fit=1,
-        fraction_evaluate=0.5,
-        min_fit_clients=5,
-        min_evaluate_clients=3,
+        fraction_evaluate=1,
+        min_fit_clients=2,
+        min_evaluate_clients=2,
         min_available_clients=NUM_PARTITIONS,
         evaluate_metrics_aggregation_fn=model.weighted_average,
         evaluate_fn=evaluate_server)  # Pass the evaluation function
@@ -94,7 +95,7 @@ def main():
     for num_partitions in NUM_PARTITIONS_LIST:
         global NUM_PARTITIONS, OUT_DIR
         NUM_PARTITIONS = num_partitions
-        OUT_DIR = f"Models/{NUM_PARTITIONS}_partitions"
+        OUT_DIR = f"Models/NewNet_{NUM_PARTITIONS}_partitions"
         if not os.path.exists(OUT_DIR):
             os.makedirs(OUT_DIR)
         print(f"##### Running simulation with {NUM_PARTITIONS} partitions #####")
@@ -102,8 +103,12 @@ def main():
 
 
 def run_single_simulation():
+    # Create an instance of the mod with the required params
+    local_dp_obj = LocalDpMod(0.5, 0.5, 0.01, 0.5)
     # Create the ClientApp
+    #client = ClientApp(client_fn=client_fn, mods=[local_dp_obj])
     client = ClientApp(client_fn=client_fn)
+
     # Create an instance of the model and get the parameters
     server = ServerApp(server_fn=server_fn)
     # Run the simulation
@@ -115,7 +120,7 @@ def run_single_simulation():
 
 if __name__ == '__main__':
     DEF_NUM_PARTITIONS = 5
-    NUM_PARTITIONS_LIST = [5, 10]
+    NUM_PARTITIONS_LIST = [2]
     main()
 
 
