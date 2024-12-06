@@ -1,5 +1,7 @@
 from typing import Dict, Optional, Tuple
 import os
+import sys
+import json
 import torch
 
 import flwr
@@ -16,13 +18,14 @@ from data_util import load_local_datasets
 
 DATASET_PATH = "Data/bccd_dataset"
 
-from model import NewNet as Net, DEVICE, DATASET_PATH, set_parameters, test
+from model import NewNet as Net, set_parameters, test
 
 DEVICE = torch.device("cpu")  # Try "cuda" to train on GPU
 print(f"Training on {DEVICE}")
 print(f"Flower {flwr.__version__} / PyTorch {torch.__version__}")
 
 BATCH_SIZE = 32
+
 
 class FlowerClient(NumPyClient):
     def __init__(self, partition_id, net, trainloader, valloader):
@@ -38,8 +41,7 @@ class FlowerClient(NumPyClient):
     def fit(self, parameters, config):
         print(f"[Client {self.partition_id}] fit, config: {config}")
         model.set_parameters(self.net, parameters)
-        #TODO: CONTROL EPOCHS
-        model.train(self.net, self.trainloader, epochs=1)
+        model.train(self.net, self.trainloader, epochs=NUM_EPOCHS)
         return model.get_parameters(self.net), len(self.trainloader), {}
 
     def evaluate(self, parameters, config):
@@ -56,16 +58,16 @@ def client_fn(context: Context) -> Client:
     partition_id = context.node_config["partition-id"]
     num_partitions = context.node_config["num-partitions"]
 
-    #TODO: replace global variable with context variable
+    # TODO: replace global variable with context variable
 
     trainloader, valloader, _, _ = load_local_datasets(partition_id, DATASET_PATH, num_partitions)
     return FlowerClient(partition_id, net, trainloader, valloader).to_client()
 
 
 def evaluate_server(
-    server_round: int,
-    parameters: NDArrays,
-    config: Dict[str, Scalar],
+        server_round: int,
+        parameters: NDArrays,
+        config: Dict[str, Scalar],
 ) -> Optional[Tuple[float, Dict[str, Scalar]]]:
     net = Net().to(DEVICE)
     _, _, testloader, _ = load_local_datasets(0, DATASET_PATH, NUM_PARTITIONS)
@@ -76,39 +78,74 @@ def evaluate_server(
     return loss, {"accuracy": accuracy}
 
 
+class CustomStrategy(FedAvg):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.metrics = []
+        self.server_evaluate_results = []
+
+    def evaluate(self, server_round, parameters):
+        result = super().evaluate(server_round, parameters)
+        if result:
+            self.server_evaluate_results.append({"round": server_round, "metrics": result[1]})
+        return result
+
+    def aggregate_evaluate(self, server_round, results, failures):
+        aggregated = super().aggregate_evaluate(server_round, results, failures)
+        if aggregated:
+            self.metrics.append({"round": server_round, "metrics": aggregated[1]})
+        return aggregated
+
+    def export_metrics(self):
+        metrics_dict = {"server_evaluate_accuracy": self.server_evaluate_results,
+                        "aggregated_evaluate_accuracy": self.metrics}
+        return metrics_dict
+
+
 def server_fn(context: Context) -> ServerAppComponents:
-    # Create the FedAvg strategy
-    strategy = FedAvg(
+    strategy = CustomStrategy(
         fraction_fit=1,
         fraction_evaluate=1,
-        min_fit_clients=2,
-        min_evaluate_clients=2,
+        min_fit_clients=1,
+        min_evaluate_clients=1,
         min_available_clients=NUM_PARTITIONS,
         evaluate_metrics_aggregation_fn=model.weighted_average,
-        evaluate_fn=evaluate_server)  # Pass the evaluation function
+        evaluate_fn=evaluate_server)
     # Configure the server for 3 rounds of training
-    config = ServerConfig(num_rounds=3)
+    # TODO: CONTROL ROUNDS
+    config = ServerConfig(num_rounds=NUM_ROUNDS)
     return ServerAppComponents(strategy=strategy, config=config)
 
 
-def main():
-    for num_partitions in NUM_PARTITIONS_LIST:
-        global NUM_PARTITIONS, OUT_DIR
-        NUM_PARTITIONS = num_partitions
-        OUT_DIR = f"Models/NewNet_{NUM_PARTITIONS}_partitions"
-        if not os.path.exists(OUT_DIR):
-            os.makedirs(OUT_DIR)
-        print(f"##### Running simulation with {NUM_PARTITIONS} partitions #####")
-        run_single_simulation()
-
-
-def run_single_simulation():
-    # Create an instance of the mod with the required params
-    local_dp_obj = LocalDpMod(0.5, 0.5, 0.01, 0.5)
+def run_single_simulation(out_dir, dp_mode=False):
+    """
+    Run a single simulation with the given number of partitions
+    :param:
+    :return:
+    """
+    # create the output directory
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+    # initialize global params
+    global OUT_DIR, NUM_ROUNDS, NUM_EPOCHS, NUM_PARTITIONS
+    OUT_DIR = out_dir
+    NUM_ROUNDS = 1
+    NUM_EPOCHS = 1
+    NUM_PARTITIONS = 1
+    # create param dict
+    param_dict = {"simulation_name":os.path.basename(out_dir), "simulation_path":out_dir, "num_rounds": NUM_ROUNDS,
+                  "num_epochs": NUM_EPOCHS, "num_partitions": NUM_PARTITIONS, "dp_mode": dp_mode}
+    # TODO: Add "save model" flag
+    # save the param dict
+    with open(f"{out_dir}/params.json", "w") as f:
+        json.dump(param_dict, f)
     # Create the ClientApp
-    #client = ClientApp(client_fn=client_fn, mods=[local_dp_obj])
-    client = ClientApp(client_fn=client_fn)
-
+    if not dp_mode:
+        client = ClientApp(client_fn=client_fn)
+    else:
+        # TODO: Set default values
+        local_dp_obj = LocalDpMod(0.5, 0.5, 0.01, 0.5)
+        client = ClientApp(client_fn=client_fn, mods=[local_dp_obj])
     # Create an instance of the model and get the parameters
     server = ServerApp(server_fn=server_fn)
     # Run the simulation
@@ -116,11 +153,19 @@ def run_single_simulation():
         server_app=server,
         client_app=client,
         num_supernodes=NUM_PARTITIONS)
+    print(f"##### Simulation completed #####")
+    output_metrics = server._strategy.export_metrics()
+    # export metrics
+    with open(f"{out_dir}/metrics.json", "w") as f:
+        json.dump(output_metrics, f)
+
+
+def main(out_dir):
+    print(f"##### Running full simulation #####")
+    simulation_out_dir = os.path.join(out_dir, "full_simulation")
+    run_single_simulation(simulation_out_dir)
 
 
 if __name__ == '__main__':
-    DEF_NUM_PARTITIONS = 5
-    NUM_PARTITIONS_LIST = [2]
-    main()
-
-
+    OUT_DIR = 'SimulationOutputs/try_single_client'
+    main(OUT_DIR)
