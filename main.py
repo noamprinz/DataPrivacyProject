@@ -1,6 +1,5 @@
 from typing import Dict, Optional, Tuple
 import os
-import sys
 import json
 import torch
 
@@ -8,17 +7,25 @@ import flwr
 
 from flwr.client import Client, ClientApp, NumPyClient
 from flwr.server import ServerApp, ServerConfig, ServerAppComponents
-from flwr.server.strategy import FedAvg, DifferentialPrivacyClientSideFixedClipping
+from flwr.server.strategy import FedAvg
 from flwr.simulation import run_simulation
-from flwr.common import ndarrays_to_parameters, NDArrays, Scalar, Context
+from flwr.common import NDArrays, Scalar, Context
 from flwr.client.mod import LocalDpMod
 
+from model import NewNet as Net, set_parameters, test
 import model
 from data_util import load_local_datasets
 
 DATASET_PATH = "Data/bccd_dataset"
-
-from model import NewNet as Net, set_parameters, test
+# default simulation parameters
+DEF_NUM_PARTITIONS = 3
+DEF_NUM_ROUNDS = 5
+DEF_NUM_EPOCHS = 1
+DEF_EPSILON = 0.1
+# default fixed parameters for simulation
+DEF_DP_CLIPPING_NORM = 0.5
+DEF_DP_SENSITIVITY = 0.5
+DEF_DP_DELTA = 0.01
 
 DEVICE = torch.device("cpu")  # Try "cuda" to train on GPU
 print(f"Training on {DEVICE}")
@@ -41,6 +48,7 @@ class FlowerClient(NumPyClient):
     def fit(self, parameters, config):
         print(f"[Client {self.partition_id}] fit, config: {config}")
         model.set_parameters(self.net, parameters)
+        # Train the network FOR NUM_EPOCHS number of epochs
         model.train(self.net, self.trainloader, epochs=NUM_EPOCHS)
         return model.get_parameters(self.net), len(self.trainloader), {}
 
@@ -53,13 +61,9 @@ class FlowerClient(NumPyClient):
 
 def client_fn(context: Context) -> Client:
     net = Net().to(DEVICE)
-
     # Read the node_config to fetch data partition associated to this node
     partition_id = context.node_config["partition-id"]
     num_partitions = context.node_config["num-partitions"]
-
-    # TODO: replace global variable with context variable
-
     trainloader, valloader, _, _ = load_local_datasets(partition_id, DATASET_PATH, num_partitions)
     return FlowerClient(partition_id, net, trainloader, valloader).to_client()
 
@@ -111,31 +115,40 @@ def server_fn(context: Context) -> ServerAppComponents:
         min_available_clients=NUM_PARTITIONS,
         evaluate_metrics_aggregation_fn=model.weighted_average,
         evaluate_fn=evaluate_server)
-    # Configure the server for 3 rounds of training
-    # TODO: CONTROL ROUNDS
+    # Configure the server for NUM_ROUNDS rounds of training
     config = ServerConfig(num_rounds=NUM_ROUNDS)
     return ServerAppComponents(strategy=strategy, config=config)
 
 
-def run_single_simulation(out_dir, dp_mode=False):
+def run_single_simulation(out_dir, dp_mode=False, save_model=False, num_partitions=DEF_NUM_PARTITIONS,
+                          num_rounds=DEF_NUM_ROUNDS, num_epochs=DEF_NUM_EPOCHS, epsilon=DEF_EPSILON):
     """
-    Run a single simulation with the given number of partitions
-    :param:
-    :return:
+    Run a single simulation with the given parameters
+    :param out_dir: output directory
+    :param dp_mode: whether to run in differential privacy mode
+    :param save_model: whether to save the model
+    :param num_partitions: number of partitions
+    :param num_rounds: number of rounds
+    :param num_epochs: number of epochs
+    :param epsilon: differential privacy epsilon
     """
     # create the output directory
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
     # initialize global params
-    global OUT_DIR, NUM_ROUNDS, NUM_EPOCHS, NUM_PARTITIONS
+    global OUT_DIR, SAVE_MODEL # technical params
     OUT_DIR = out_dir
-    NUM_ROUNDS = 1
-    NUM_EPOCHS = 1
-    NUM_PARTITIONS = 1
+    SAVE_MODEL = save_model
+    global NUM_ROUNDS, NUM_EPOCHS, NUM_PARTITIONS, EPSILON # simulation params
+    NUM_ROUNDS = num_rounds
+    NUM_EPOCHS = num_epochs
+    NUM_PARTITIONS = num_partitions
+    EPSILON = epsilon
     # create param dict
-    param_dict = {"simulation_name":os.path.basename(out_dir), "simulation_path":out_dir, "num_rounds": NUM_ROUNDS,
-                  "num_epochs": NUM_EPOCHS, "num_partitions": NUM_PARTITIONS, "dp_mode": dp_mode}
-    # TODO: Add "save model" flag
+    param_dict = {"simulation_name":os.path.basename(OUT_DIR), "simulation_path":OUT_DIR, "num_rounds": NUM_ROUNDS,
+                  "num_epochs": NUM_EPOCHS, "num_partitions": NUM_PARTITIONS, "dp_mode": dp_mode, "save_model": SAVE_MODEL}
+    if dp_mode:
+        param_dict["epsilon"] = EPSILON
     # save the param dict
     with open(f"{out_dir}/params.json", "w") as f:
         json.dump(param_dict, f)
@@ -143,12 +156,18 @@ def run_single_simulation(out_dir, dp_mode=False):
     if not dp_mode:
         client = ClientApp(client_fn=client_fn)
     else:
-        # TODO: Set default values
-        local_dp_obj = LocalDpMod(0.5, 0.5, 0.01, 0.5)
+        # if differential privacy mode is enabled, create a LocalDpMod object with EPSILON value for epsilon
+        local_dp_obj = LocalDpMod(clipping_norm=DEF_DP_CLIPPING_NORM, sensitivity=DEF_DP_SENSITIVITY, epsilon=EPSILON,
+                                  delta=DEF_DP_DELTA)
         client = ClientApp(client_fn=client_fn, mods=[local_dp_obj])
     # Create an instance of the model and get the parameters
     server = ServerApp(server_fn=server_fn)
     # Run the simulation
+    print("Running simulation for the following parameters:")
+    print(f"Number of partitions: {NUM_PARTITIONS}, Number of rounds: {NUM_ROUNDS}, Number of epochs: {NUM_EPOCHS}, "
+          f"DP Epsilon: {EPSILON}")
+    print(f"Output directory: {OUT_DIR}, Saving model: {SAVE_MODEL}, Differential Privacy mode: {dp_mode}")
+    # Run the simulation with NUM_PARTITIONS number of clients
     run_simulation(
         server_app=server,
         client_app=client,
@@ -159,13 +178,23 @@ def run_single_simulation(out_dir, dp_mode=False):
     with open(f"{out_dir}/metrics.json", "w") as f:
         json.dump(output_metrics, f)
 
+def analyze_num_epochs(out_dir, num_epochs_list):
+    """
+    Analyze the effect of number of epochs on the simulation
+    :return:
+    """
+    for epoch in num_epochs_list:
+        out_dir = f"{out_dir}/num_epochs_{epoch}"
+        run_single_simulation(out_dir, dp_mode=False, save_model=False, num_epochs=epoch)
 
 def main(out_dir):
-    print(f"##### Running full simulation #####")
-    simulation_out_dir = os.path.join(out_dir, "full_simulation")
-    run_single_simulation(simulation_out_dir)
+    print(f"##### Analyzing Number of Epochs #####")
+    num_epochs_list = [1, 2, 3, 4, 5, 10]
+    analyze_num_epochs(out_dir, num_epochs_list)
+
+
 
 
 if __name__ == '__main__':
-    OUT_DIR = 'SimulationOutputs/try_single_client'
+    OUT_DIR = 'SimulationOutputs'
     main(OUT_DIR)
