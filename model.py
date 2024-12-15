@@ -52,7 +52,6 @@ class NewNet(nn.Module):
         nn.Linear(120, 84),
         nn.ReLU(),
         nn.Linear(84, 4))
-        # TODO: Change output to 4 classes
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.conv_layers(x)

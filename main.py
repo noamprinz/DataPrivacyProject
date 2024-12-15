@@ -77,7 +77,8 @@ def evaluate_server(
     _, _, testloader, _ = load_local_datasets(0, DATASET_PATH, NUM_PARTITIONS)
     set_parameters(net, parameters)  # Update model with the latest parameters
     loss, accuracy = test(net, testloader)
-    torch.save(net.state_dict(), f"{OUT_DIR}/{server_round}_model.pth")
+    if SAVE_MODEL:
+        torch.save(net.state_dict(), f"{OUT_DIR}/{server_round}_model.pth")
     print(f"Server-side evaluation loss {loss} / accuracy {accuracy}")
     return loss, {"accuracy": accuracy}
 
@@ -184,14 +185,28 @@ def analyze_num_epochs(out_dir, num_epochs_list):
     :return:
     """
     for epoch in num_epochs_list:
-        out_dir = f"{out_dir}/num_epochs_{epoch}"
-        run_single_simulation(out_dir, dp_mode=False, save_model=False, num_epochs=epoch)
+        epochs_out_dir = f"{out_dir}/num_epochs_{epoch}"
+        run_single_simulation(epochs_out_dir, dp_mode=False, save_model=False, num_epochs=epoch)
+
+def analyze_num_rounds(out_dir, num_rounds_list, num_epochs=DEF_NUM_EPOCHS):
+    """
+    Analyze the effect of number of rounds on the simulation
+    :return:
+    """
+    for round in num_rounds_list:
+        rounds_out_dir = f"{out_dir}/num_rounds_{round}"
+        run_single_simulation(rounds_out_dir, dp_mode=False, save_model=False, num_rounds=round,
+                              num_epochs=num_epochs)
 
 def main(out_dir):
     print(f"##### Analyzing Number of Epochs #####")
-    # num_epochs_list = [1, 2, 3, 4, 5, 10]
-    num_epochs_list = [4, 5, 10]
-    analyze_num_epochs(out_dir, num_epochs_list)
+    num_epochs_list = [1, 2, 3, 4, 5, 10]
+    # analyze_num_epochs(out_dir, num_epochs_list)
+    # set the number of epochs to 5
+    NUM_EPOCHS = 5
+    print(f"##### Analyzing Number of Rounds #####")
+    num_rounds_list = [1, 3, 5, 10, 15, 20]
+    analyze_num_rounds(out_dir, num_rounds_list, num_epochs=NUM_EPOCHS)
 
 
 
