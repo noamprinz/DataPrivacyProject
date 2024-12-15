@@ -189,7 +189,8 @@ def analyze_num_epochs(out_dir, num_epochs_list):
 
 def main(out_dir):
     print(f"##### Analyzing Number of Epochs #####")
-    num_epochs_list = [1, 2, 3, 4, 5, 10]
+    # num_epochs_list = [1, 2, 3, 4, 5, 10]
+    num_epochs_list = [4, 5, 10]
     analyze_num_epochs(out_dir, num_epochs_list)
 
 
