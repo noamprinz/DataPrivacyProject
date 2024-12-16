@@ -197,6 +197,15 @@ def analyze_num_rounds(out_dir, num_rounds_list, num_epochs=DEF_NUM_EPOCHS):
         rounds_out_dir = f"{out_dir}/num_rounds_{round}"
         run_single_simulation(rounds_out_dir, dp_mode=False, save_model=False, num_rounds=round,
                               num_epochs=num_epochs)
+def analyze_num_partitions(out_dir, num_partitions_list, num_rounds=DEF_NUM_ROUNDS, num_epochs=DEF_NUM_EPOCHS):
+    """
+    Analyze the effect of number of partitions on the simulation
+    :return:
+    """
+    for partition in num_partitions_list:
+        partition_out_dir = f"{out_dir}/num_partitions_{partition}"
+        run_single_simulation(partition_out_dir, dp_mode=False, save_model=False, num_partitions=partition,
+                              num_rounds=num_rounds, num_epochs=num_epochs)
 
 def main(out_dir):
     print(f"##### Analyzing Number of Epochs #####")
@@ -206,7 +215,11 @@ def main(out_dir):
     NUM_EPOCHS = 5
     print(f"##### Analyzing Number of Rounds #####")
     num_rounds_list = [1, 3, 5, 10, 15, 20]
-    analyze_num_rounds(out_dir, num_rounds_list, num_epochs=NUM_EPOCHS)
+    # analyze_num_rounds(out_dir, num_rounds_list, num_epochs=NUM_EPOCHS)
+    NUM_ROUNDS = 5
+    print(f"##### Analyzing Number of Partitions #####")
+    num_partitions_list = [1, 2, 3, 4, 5, 10, 20]
+    analyze_num_partitions(out_dir, num_partitions_list, num_rounds=NUM_ROUNDS, num_epochs=NUM_EPOCHS)
 
 
 
