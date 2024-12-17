@@ -14,7 +14,7 @@ from flwr.client.mod import LocalDpMod
 
 from model import NewNet as Net, set_parameters, test
 import model
-from data_util import load_local_datasets
+from data_util import load_local_datasets, NUM_PARTITIONS
 
 DATASET_PATH = "Data/bccd_dataset"
 # default simulation parameters
@@ -207,6 +207,16 @@ def analyze_num_partitions(out_dir, num_partitions_list, num_rounds=DEF_NUM_ROUN
         run_single_simulation(partition_out_dir, dp_mode=False, save_model=False, num_partitions=partition,
                               num_rounds=num_rounds, num_epochs=num_epochs)
 
+def analyze_epsilons(out_dir, epsilons, num_rounds=DEF_NUM_ROUNDS, num_epochs=DEF_NUM_EPOCHS, num_partitions=DEF_NUM_PARTITIONS):
+    """
+    Analyze the effect of epsilon on the simulation
+    :return:
+    """
+    for epsilon in epsilons:
+        epsilon_out_dir = f"{out_dir}/epsilon_{epsilon}"
+        run_single_simulation(epsilon_out_dir, dp_mode=True, save_model=False, num_partitions=num_partitions,
+                              num_rounds=num_rounds, num_epochs=num_epochs, epsilon=epsilon)
+
 def main(out_dir):
     print(f"##### Analyzing Number of Epochs #####")
     num_epochs_list = [1, 2, 3, 4, 5, 10]
@@ -219,7 +229,11 @@ def main(out_dir):
     NUM_ROUNDS = 5
     print(f"##### Analyzing Number of Partitions #####")
     num_partitions_list = [1, 2, 3, 4, 5, 10, 20]
-    analyze_num_partitions(out_dir, num_partitions_list, num_rounds=NUM_ROUNDS, num_epochs=NUM_EPOCHS)
+    # analyze_num_partitions(out_dir, num_partitions_list, num_rounds=NUM_ROUNDS, num_epochs=NUM_EPOCHS)
+    NUM_PARTITIONS = 3
+    print(f"##### Analyzing Epsilon #####")
+    epsilons = [0.1, 0.5, 1.0, 1.5, 2.0]
+    analyze_epsilons(out_dir, epsilons, num_rounds=NUM_ROUNDS, num_epochs=NUM_EPOCHS, num_partitions=NUM_PARTITIONS)
 
 
 
