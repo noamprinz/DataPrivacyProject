@@ -17,15 +17,17 @@ import model
 from data_util import load_local_datasets, NUM_PARTITIONS
 
 DATASET_PATH = "Data/bccd_dataset"
+
 # default simulation parameters
 DEF_NUM_PARTITIONS = 3
 DEF_NUM_ROUNDS = 5
 DEF_NUM_EPOCHS = 1
-DEF_EPSILON = 0.1
-# default fixed parameters for simulation
-DEF_DP_CLIPPING_NORM = 0.5
-DEF_DP_SENSITIVITY = 0.5
-DEF_DP_DELTA = 0.01
+
+# default dp parameters for simulation
+DEF_DP_CLIPPING_NORM = 1.0
+DEF_DP_SENSITIVITY = 1.0
+DEF_DP_DELTA = 1e-5
+DEF_EPSILON = 1.0
 
 DEVICE = torch.device("cpu")  # Try "cuda" to train on GPU
 print(f"Training on {DEVICE}")
@@ -122,7 +124,8 @@ def server_fn(context: Context) -> ServerAppComponents:
 
 
 def run_single_simulation(out_dir, dp_mode=False, save_model=False, num_partitions=DEF_NUM_PARTITIONS,
-                          num_rounds=DEF_NUM_ROUNDS, num_epochs=DEF_NUM_EPOCHS, epsilon=DEF_EPSILON):
+                          num_rounds=DEF_NUM_ROUNDS, num_epochs=DEF_NUM_EPOCHS, epsilon=DEF_EPSILON,
+                          clipping_norm=DEF_DP_CLIPPING_NORM):
     """
     Run a single simulation with the given parameters
     :param out_dir: output directory
@@ -132,24 +135,28 @@ def run_single_simulation(out_dir, dp_mode=False, save_model=False, num_partitio
     :param num_rounds: number of rounds
     :param num_epochs: number of epochs
     :param epsilon: differential privacy epsilon
+    :param clipping_norm: differential privacy clipping norm
     """
     # create the output directory
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
     # initialize global params
-    global OUT_DIR, SAVE_MODEL # technical params
+    global OUT_DIR, SAVE_MODEL  # technical params
     OUT_DIR = out_dir
     SAVE_MODEL = save_model
-    global NUM_ROUNDS, NUM_EPOCHS, NUM_PARTITIONS, EPSILON # simulation params
+    global NUM_ROUNDS, NUM_EPOCHS, NUM_PARTITIONS, EPSILON, CLIPPING_NORM  # simulation params
     NUM_ROUNDS = num_rounds
     NUM_EPOCHS = num_epochs
     NUM_PARTITIONS = num_partitions
     EPSILON = epsilon
+    CLIPPING_NORM = clipping_norm
     # create param dict
-    param_dict = {"simulation_name":os.path.basename(OUT_DIR), "simulation_path":OUT_DIR, "num_rounds": NUM_ROUNDS,
-                  "num_epochs": NUM_EPOCHS, "num_partitions": NUM_PARTITIONS, "dp_mode": dp_mode, "save_model": SAVE_MODEL}
+    param_dict = {"simulation_name": os.path.basename(OUT_DIR), "simulation_path": OUT_DIR, "num_rounds": NUM_ROUNDS,
+                  "num_epochs": NUM_EPOCHS, "num_partitions": NUM_PARTITIONS, "dp_mode": dp_mode,
+                  "save_model": SAVE_MODEL}
     if dp_mode:
         param_dict["epsilon"] = EPSILON
+        param_dict["clipping_norm"] = CLIPPING_NORM
     # save the param dict
     with open(f"{out_dir}/params.json", "w") as f:
         json.dump(param_dict, f)
@@ -158,7 +165,7 @@ def run_single_simulation(out_dir, dp_mode=False, save_model=False, num_partitio
         client = ClientApp(client_fn=client_fn)
     else:
         # if differential privacy mode is enabled, create a LocalDpMod object with EPSILON value for epsilon
-        local_dp_obj = LocalDpMod(clipping_norm=DEF_DP_CLIPPING_NORM, sensitivity=DEF_DP_SENSITIVITY, epsilon=EPSILON,
+        local_dp_obj = LocalDpMod(clipping_norm=CLIPPING_NORM, sensitivity=DEF_DP_SENSITIVITY, epsilon=EPSILON,
                                   delta=DEF_DP_DELTA)
         client = ClientApp(client_fn=client_fn, mods=[local_dp_obj])
     # Create an instance of the model and get the parameters
@@ -166,7 +173,7 @@ def run_single_simulation(out_dir, dp_mode=False, save_model=False, num_partitio
     # Run the simulation
     print("Running simulation for the following parameters:")
     print(f"Number of partitions: {NUM_PARTITIONS}, Number of rounds: {NUM_ROUNDS}, Number of epochs: {NUM_EPOCHS}, "
-          f"DP Epsilon: {EPSILON}")
+          f"DP Epsilon: {EPSILON}, clipping norm: {CLIPPING_NORM}")
     print(f"Output directory: {OUT_DIR}, Saving model: {SAVE_MODEL}, Differential Privacy mode: {dp_mode}")
     # Run the simulation with NUM_PARTITIONS number of clients
     run_simulation(
@@ -179,6 +186,7 @@ def run_single_simulation(out_dir, dp_mode=False, save_model=False, num_partitio
     with open(f"{out_dir}/metrics.json", "w") as f:
         json.dump(output_metrics, f)
 
+
 def analyze_num_epochs(out_dir, num_epochs_list):
     """
     Analyze the effect of number of epochs on the simulation
@@ -187,6 +195,7 @@ def analyze_num_epochs(out_dir, num_epochs_list):
     for epoch in num_epochs_list:
         epochs_out_dir = f"{out_dir}/num_epochs_{epoch}"
         run_single_simulation(epochs_out_dir, dp_mode=False, save_model=False, num_epochs=epoch)
+
 
 def analyze_num_rounds(out_dir, num_rounds_list, num_epochs=DEF_NUM_EPOCHS):
     """
@@ -197,6 +206,8 @@ def analyze_num_rounds(out_dir, num_rounds_list, num_epochs=DEF_NUM_EPOCHS):
         rounds_out_dir = f"{out_dir}/num_rounds_{round}"
         run_single_simulation(rounds_out_dir, dp_mode=False, save_model=False, num_rounds=round,
                               num_epochs=num_epochs)
+
+
 def analyze_num_partitions(out_dir, num_partitions_list, num_rounds=DEF_NUM_ROUNDS, num_epochs=DEF_NUM_EPOCHS):
     """
     Analyze the effect of number of partitions on the simulation
@@ -207,7 +218,10 @@ def analyze_num_partitions(out_dir, num_partitions_list, num_rounds=DEF_NUM_ROUN
         run_single_simulation(partition_out_dir, dp_mode=False, save_model=False, num_partitions=partition,
                               num_rounds=num_rounds, num_epochs=num_epochs)
 
-def analyze_epsilons(out_dir, epsilons, num_rounds=DEF_NUM_ROUNDS, num_epochs=DEF_NUM_EPOCHS, num_partitions=DEF_NUM_PARTITIONS):
+
+def analyze_epsilons(out_dir, epsilons, num_rounds=DEF_NUM_ROUNDS, num_epochs=DEF_NUM_EPOCHS,
+                     num_partitions=DEF_NUM_PARTITIONS,
+                     clipping_norm=DEF_DP_CLIPPING_NORM):
     """
     Analyze the effect of epsilon on the simulation
     :return:
@@ -215,7 +229,20 @@ def analyze_epsilons(out_dir, epsilons, num_rounds=DEF_NUM_ROUNDS, num_epochs=DE
     for epsilon in epsilons:
         epsilon_out_dir = f"{out_dir}/epsilon_{epsilon}"
         run_single_simulation(epsilon_out_dir, dp_mode=True, save_model=False, num_partitions=num_partitions,
-                              num_rounds=num_rounds, num_epochs=num_epochs, epsilon=epsilon)
+                              num_rounds=num_rounds, num_epochs=num_epochs, epsilon=epsilon,
+                              clipping_norm=clipping_norm)
+
+def analyze_clipping_norms(out_dir, clipping_norms, num_rounds=DEF_NUM_ROUNDS, num_epochs=DEF_NUM_EPOCHS,
+                        num_partitions=DEF_NUM_PARTITIONS, epsilon=DEF_EPSILON):
+        """
+        Analyze the effect of epsilon on the simulation
+        :return:
+        """
+        for clipping_norm in clipping_norms:
+            clipping_norm_out_dir = f"{out_dir}/clipping_norm_{clipping_norm}"
+            run_single_simulation(clipping_norm_out_dir, dp_mode=True, save_model=False, num_partitions=num_partitions,
+                                num_rounds=num_rounds, num_epochs=num_epochs, epsilon=epsilon,
+                                clipping_norm=clipping_norm)
 
 def main(out_dir):
     print(f"##### Analyzing Number of Epochs #####")
@@ -231,9 +258,21 @@ def main(out_dir):
     num_partitions_list = [1, 2, 3, 4, 5, 10, 20]
     # analyze_num_partitions(out_dir, num_partitions_list, num_rounds=NUM_ROUNDS, num_epochs=NUM_EPOCHS)
     NUM_PARTITIONS = 3
-    print(f"##### Analyzing Epsilon #####")
-    epsilons = [0.1, 0.5, 1.0, 1.5, 2.0]
-    analyze_epsilons(out_dir, epsilons, num_rounds=NUM_ROUNDS, num_epochs=NUM_EPOCHS, num_partitions=NUM_PARTITIONS)
+    print(f"##### Analyzing Epsilon with Clipping Norm set to 1 #####")
+    epsilons = [0.1, 0.5, 1.0, 2.0, 5.0, 10.0]
+    CLIPPING_NORM = 1
+    analyze_epsilons(out_dir, epsilons, num_rounds=NUM_ROUNDS, num_epochs=NUM_EPOCHS, num_partitions=NUM_PARTITIONS,
+                      clipping_norm=CLIPPING_NORM)
+    print(f"##### Analyzing Epsilon with Clipping Norm set to inf #####")
+    epsilons = [0.1, 0.5, 1.0, 2.0, 5.0, 10.0]
+    CLIPPING_NORM = float("inf")
+    analyze_epsilons(out_dir, epsilons, num_rounds=NUM_ROUNDS, num_epochs=NUM_EPOCHS, num_partitions=NUM_PARTITIONS,
+                      clipping_norm=CLIPPING_NORM)
+    EPSILON = 1
+    print("##### Analyzing Clipping Norm #####")
+    clipping_norms = [float("inf"), 0.1, 0.5, 1.0, 2.0, 5.0, 10.0]
+    analyze_clipping_norms(out_dir, clipping_norms, num_rounds=NUM_ROUNDS, num_epochs=NUM_EPOCHS, num_partitions=NUM_PARTITIONS,
+                          epsilon=EPSILON)
 
 
 
