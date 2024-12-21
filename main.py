@@ -4,7 +4,6 @@ import json
 import torch
 
 import flwr
-from dateutil.tz import EPOCH
 
 from flwr.client import Client, ClientApp, NumPyClient
 from flwr.server import ServerApp, ServerConfig, ServerAppComponents
@@ -12,11 +11,10 @@ from flwr.server.strategy import FedAvg
 from flwr.simulation import run_simulation
 from flwr.common import NDArrays, Scalar, Context
 from flwr.client.mod import LocalDpMod
-from jsonschema.benchmarks.useless_applicator_schemas import baseline
 
 from model import NewNet as Net, set_parameters, test
 import model
-from data_util import load_local_datasets, NUM_PARTITIONS
+from data_util import load_local_datasets
 
 DATASET_PATH = "Data/bccd_dataset"
 
