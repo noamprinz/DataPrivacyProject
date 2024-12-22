@@ -3,7 +3,6 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
-from collections import defaultdict
 
 from lime import lime_image
 from skimage.segmentation import mark_boundaries
@@ -223,41 +222,38 @@ def main():
     # Load the test dataset
     dataset_path = "Data/bccd_dataset"
     _, _, test_dataset, class_dict = load_local_datasets(0, dataset_path, 10)
-
-    model_paths = [
-        "SimulationOutputs/try_num_epochs_1/0_model.pth",
-        "SimulationOutputs/try_num_epochs_1/0_model.pth"
-    ]
-
-    model_names = [
-        "Model 1",
-        "Model 2"
-    ]
-
-    output_dir = "Outputs/model_comparison"
-    # Get representative images once
     representative_images = get_representative_images(test_dataset, class_dict)
-
-    # Generate separate SHAP and LIME explanations using the same images
-    compare_shap_explanations(
-        model_paths,
-        model_names,
-        test_dataset,
-        output_dir,
-        class_dict,
-        representative_images
-    )
-    print("SHAP model comparisons saved")
-
-    compare_lime_explanations(
-        model_paths,
-        model_names,
-        test_dataset,
-        output_dir,
-        class_dict,
-        representative_images
-    )
-    print("LIME model comparisons saved")
+    print("### Creating SHAP and LIME explanations for epsilon ###")
+    epsilon_model_paths = ["SimulationOutputs/Qualitative/baseline/5_model.pth",
+                           "SimulationOutputs/Qualitative/weak_epsilon/4_model.pth",
+                           "SimulationOutputs/Qualitative/strong_epsilon/5_model.pth"]
+    epsilon_model_names = ["Baseline Model",
+                           "Weak Epsilon",
+                           "Strong Epsilon"]
+    epsilons_output_dir = "Outputs/epsilons_comparison"
+    compare_shap_explanations(epsilon_model_paths, epsilon_model_names, test_dataset, epsilons_output_dir, class_dict, representative_images)
+    compare_lime_explanations(epsilon_model_paths, epsilon_model_names, test_dataset, epsilons_output_dir, class_dict, representative_images)
+    print("### Creating SHAP and LIME explanations for clipping norm ###")
+    clipping_norm_model_paths = ["SimulationOutputs/Qualitative/baseline/5_model.pth",
+                                 "SimulationOutputs/Qualitative/weak_clipping_norm/5_model.pth",
+                                 "SimulationOutputs/Qualitative/strong_clipping_norm/5_model.pth"]
+    clipping_norm_model_names = ["Baseline Model",
+                                 "Weak Clipping Norm",
+                                 "Strong Clipping Norm"]
+    clipping_norm_output_dir = "Outputs/clipping_norm_comparison"
+    compare_shap_explanations(clipping_norm_model_paths, clipping_norm_model_names, test_dataset, clipping_norm_output_dir, class_dict, representative_images)
+    compare_lime_explanations(clipping_norm_model_paths, clipping_norm_model_names, test_dataset, clipping_norm_output_dir, class_dict, representative_images)
+    print("### Creating SHAP and LIME explanations for combinations ###")
+    combinations_model_paths = ["SimulationOutputs/Qualitative/baseline/5_model.pth",
+                                "SimulationOutputs/Qualitative/weak_combination/5_model.pth",
+                                "SimulationOutputs/Qualitative/strong_combination/5_model.pth"]
+    combinations_model_names = ["Baseline Model",
+                                "Weak Combination",
+                                "Strong Combination"]
+    combinations_output_dir = "Outputs/combinations_comparison"
+    compare_shap_explanations(combinations_model_paths, combinations_model_names, test_dataset, combinations_output_dir, class_dict, representative_images)
+    compare_lime_explanations(combinations_model_paths, combinations_model_names, test_dataset, combinations_output_dir, class_dict, representative_images)
+    print("### Finished ###")
 
 
 if __name__ == "__main__":
