@@ -1,0 +1,1 @@
+{"server_evaluate_accuracy": [{"round": 0, "metrics": {"accuracy": 0.24527543224768797}}, {"round": 1, "metrics": {"accuracy": 0.2923200643345396}}], "aggregated_evaluate_accuracy": [{"round": 1, "metrics": {"accuracy": 0.3042168674698795}}]}

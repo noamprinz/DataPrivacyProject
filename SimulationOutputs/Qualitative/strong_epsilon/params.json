@@ -1,0 +1,1 @@
+{"simulation_name": "strong_epsilon", "simulation_path": "SimulationOutputs/strong_epsilon", "num_rounds": 5, "num_epochs": 5, "num_partitions": 3, "dp_mode": true, "save_model": true, "epsilon": 0.1, "clipping_norm": Infinity}

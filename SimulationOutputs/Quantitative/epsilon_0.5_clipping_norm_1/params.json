@@ -1,0 +1,1 @@
+{"simulation_name": "epsilon_0.5", "simulation_path": "SimulationOutputs/epsilon_0.5", "num_rounds": 5, "num_epochs": 5, "num_partitions": 3, "dp_mode": true, "save_model": false, "epsilon": 0.5, "clipping_norm": 1}

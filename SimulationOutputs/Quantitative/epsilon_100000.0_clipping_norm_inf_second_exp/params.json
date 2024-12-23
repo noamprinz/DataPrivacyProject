@@ -1,0 +1,1 @@
+{"simulation_name": "epsilon_100000.0_clipping_norm_inf_second_exp", "simulation_path": "SimulationOutputs/epsilon_100000.0_clipping_norm_inf_second_exp", "num_rounds": 5, "num_epochs": 5, "num_partitions": 3, "dp_mode": true, "save_model": false, "epsilon": 100000.0, "clipping_norm": Infinity}

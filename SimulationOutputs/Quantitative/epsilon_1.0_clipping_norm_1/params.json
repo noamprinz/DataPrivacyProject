@@ -1,0 +1,1 @@
+{"simulation_name": "epsilon_1.0_clipping_norm_1", "simulation_path": "SimulationOutputs/epsilon_1.0_clipping_norm_1", "num_rounds": 5, "num_epochs": 5, "num_partitions": 3, "dp_mode": true, "save_model": false, "epsilon": 1.0, "clipping_norm": 1}

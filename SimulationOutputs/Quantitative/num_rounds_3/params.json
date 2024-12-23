@@ -1,0 +1,1 @@
+{"simulation_name": "num_rounds_3", "simulation_path": "SimulationOutputs/num_rounds_3", "num_rounds": 3, "num_epochs": 5, "num_partitions": 3, "dp_mode": false, "save_model": false}

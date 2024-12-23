@@ -1,0 +1,1 @@
+{"simulation_name": "weak_clipping_norm", "simulation_path": "SimulationOutputs/weak_clipping_norm", "num_rounds": 5, "num_epochs": 5, "num_partitions": 3, "dp_mode": true, "save_model": true, "epsilon": 100000.0, "clipping_norm": 25}
