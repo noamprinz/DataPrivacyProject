@@ -59,37 +59,3 @@ def load_and_extract_metrics(file_path):
         print(f"Error processing file {file_path}: {e}")
 
     return file_metrics
-
-
-def main():
-    # Example usage - replace with your actual file paths
-    paths = [
-        'SimulationOutputs/num_epochs_1/metrics.json',
-        'SimulationOutputs/num_epochs_2/metrics.json',
-        'SimulationOutputs/num_epochs_3/metrics.json',
-        'SimulationOutputs/num_epochs_4/metrics.json',
-        'SimulationOutputs/num_epochs_5/metrics.json',
-        'SimulationOutputs/num_epochs_10/metrics.json'
-    ]
-
-    # Load and extract metrics for each file
-    all_file_metrics = []
-    for path in paths:
-        file_metrics = load_and_extract_metrics(path)
-        all_file_metrics.append(file_metrics)
-
-    # Print results for verification
-    for metrics in all_file_metrics:
-        print(f"\nMetrics for {metrics['file_path']}:")
-        print("Aggregated Metrics:")
-        print(f"  List: {metrics['aggregated_metrics']}")
-        print(f"  Best Metric: {metrics['best_aggregated_metric']}")
-
-        print("\nServer Metrics:")
-        print(f"  List: {metrics['server_metrics']}")
-        print(f"  Best Metric: {metrics['best_server_metric']}")
-
-
-# Allow the script to be run directly or imported
-if __name__ == "__main__":
-    main()

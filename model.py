@@ -10,7 +10,7 @@ from flwr.common import Metrics
 from typing import List, Tuple
 
 DATASET_PATH = "Data/bccd_dataset"
-NUM_PARTITIONS = 10
+
 DEVICE = torch.device("cpu")  # Try "cuda" to train on GPU
 
 print(f"Training on {DEVICE}")
@@ -24,8 +24,7 @@ class Net(nn.Module):
         self.conv2 = nn.Conv2d(6, 16, 5)
         self.fc1 = nn.Linear(16 * 57 * 77, 120)
         self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 10)
-        # TODO: Change output to 4 classes
+        self.fc3 = nn.Linear(84, 4)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.pool(F.relu(self.conv1(x)))
@@ -37,6 +36,9 @@ class Net(nn.Module):
         return x
 
 class NewNet(nn.Module):
+    """
+    Same as Net but with nn.sequential for conv and fc layers (needed for SHAP and LIME explainers)
+    """
     def __init__(self) -> None:
         super(NewNet, self).__init__()
         self.conv_layers = nn.Sequential(
@@ -116,6 +118,5 @@ def weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
     # Multiply accuracy of each client by number of examples used
     accuracies = [num_examples * m["accuracy"] for num_examples, m in metrics]
     examples = [num_examples for num_examples, _ in metrics]
-
     # Aggregate and return custom metric (weighted average)
     return {"accuracy": sum(accuracies) / sum(examples)}

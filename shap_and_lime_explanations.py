@@ -3,10 +3,10 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
+import shap
 
 from lime import lime_image
 from skimage.segmentation import mark_boundaries
-import shap
 
 from model import NewNet as Net
 from data_util import load_local_datasets

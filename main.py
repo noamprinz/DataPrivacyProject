@@ -1,10 +1,9 @@
-from typing import Dict, Optional, Tuple
 import os
 import json
 import torch
-
 import flwr
 
+from typing import Dict, Optional, Tuple
 from flwr.client import Client, ClientApp, NumPyClient
 from flwr.server import ServerApp, ServerConfig, ServerAppComponents
 from flwr.server.strategy import FedAvg
@@ -12,8 +11,9 @@ from flwr.simulation import run_simulation
 from flwr.common import NDArrays, Scalar, Context
 from flwr.client.mod import LocalDpMod
 
-from model import NewNet as Net, set_parameters, test
 import model
+
+from model import NewNet as Net
 from data_util import load_local_datasets
 
 DATASET_PATH = "Data/bccd_dataset"
@@ -30,6 +30,7 @@ DEF_DP_DELTA = 1e-5
 DEF_EPSILON = 1.0
 
 DEVICE = torch.device("cpu")  # Try "cuda" to train on GPU
+
 print(f"Training on {DEVICE}")
 print(f"Flower {flwr.__version__} / PyTorch {torch.__version__}")
 
@@ -77,8 +78,8 @@ def evaluate_server(
 ) -> Optional[Tuple[float, Dict[str, Scalar]]]:
     net = Net().to(DEVICE)
     _, _, testloader, _ = load_local_datasets(0, DATASET_PATH, NUM_PARTITIONS)
-    set_parameters(net, parameters)  # Update model with the latest parameters
-    loss, accuracy = test(net, testloader)
+    model.set_parameters(net, parameters)  # Update model with the latest parameters
+    loss, accuracy = model.test(net, testloader)
     if SAVE_MODEL:
         torch.save(net.state_dict(), f"{OUT_DIR}/{server_round}_model.pth")
     print(f"Server-side evaluation loss {loss} / accuracy {accuracy}")
@@ -190,7 +191,6 @@ def run_single_simulation(out_dir, dp_mode=False, save_model=False, num_partitio
 def analyze_num_epochs(out_dir, num_epochs_list):
     """
     Analyze the effect of number of epochs on the simulation
-    :return:
     """
     for epoch in num_epochs_list:
         epochs_out_dir = f"{out_dir}/num_epochs_{epoch}"
@@ -200,7 +200,6 @@ def analyze_num_epochs(out_dir, num_epochs_list):
 def analyze_num_rounds(out_dir, num_rounds_list, num_epochs=DEF_NUM_EPOCHS):
     """
     Analyze the effect of number of rounds on the simulation
-    :return:
     """
     for round in num_rounds_list:
         rounds_out_dir = f"{out_dir}/num_rounds_{round}"
@@ -211,7 +210,6 @@ def analyze_num_rounds(out_dir, num_rounds_list, num_epochs=DEF_NUM_EPOCHS):
 def analyze_num_partitions(out_dir, num_partitions_list, num_rounds=DEF_NUM_ROUNDS, num_epochs=DEF_NUM_EPOCHS):
     """
     Analyze the effect of number of partitions on the simulation
-    :return:
     """
     for partition in num_partitions_list:
         partition_out_dir = f"{out_dir}/num_partitions_{partition}"
@@ -224,7 +222,6 @@ def analyze_epsilons(out_dir, epsilons, num_rounds=DEF_NUM_ROUNDS, num_epochs=DE
                      clipping_norm=DEF_DP_CLIPPING_NORM):
     """
     Analyze the effect of epsilon on the simulation
-    :return:
     """
     for epsilon in epsilons:
         epsilon_out_dir = f"{out_dir}/epsilon_{epsilon}"
@@ -232,17 +229,17 @@ def analyze_epsilons(out_dir, epsilons, num_rounds=DEF_NUM_ROUNDS, num_epochs=DE
                               num_rounds=num_rounds, num_epochs=num_epochs, epsilon=epsilon,
                               clipping_norm=clipping_norm)
 
+
 def analyze_clipping_norms(out_dir, clipping_norms, num_rounds=DEF_NUM_ROUNDS, num_epochs=DEF_NUM_EPOCHS,
-                        num_partitions=DEF_NUM_PARTITIONS, epsilon=DEF_EPSILON):
-        """
-        Analyze the effect of epsilon on the simulation
-        :return:
-        """
-        for clipping_norm in clipping_norms:
-            clipping_norm_out_dir = f"{out_dir}/clipping_norm_{clipping_norm}"
-            run_single_simulation(clipping_norm_out_dir, dp_mode=True, save_model=False, num_partitions=num_partitions,
-                                num_rounds=num_rounds, num_epochs=num_epochs, epsilon=epsilon,
-                                clipping_norm=clipping_norm)
+                           num_partitions=DEF_NUM_PARTITIONS, epsilon=DEF_EPSILON):
+    """
+    Analyze the effect of epsilon on the simulation
+    """
+    for clipping_norm in clipping_norms:
+        clipping_norm_out_dir = f"{out_dir}/clipping_norm_{clipping_norm}"
+        run_single_simulation(clipping_norm_out_dir, dp_mode=True, save_model=False, num_partitions=num_partitions,
+                              num_rounds=num_rounds, num_epochs=num_epochs, epsilon=epsilon,
+                              clipping_norm=clipping_norm)
 
 
 def run_quantitive_analysis_simulations(out_dir):
@@ -253,11 +250,11 @@ def run_quantitive_analysis_simulations(out_dir):
     NUM_EPOCHS = 5
     print(f"##### Analyzing Number of Rounds #####")
     num_rounds_list = [1, 3, 5, 10, 15, 20]
-    # analyze_num_rounds(out_dir, num_rounds_list, num_epochs=NUM_EPOCHS)
+    analyze_num_rounds(out_dir, num_rounds_list, num_epochs=NUM_EPOCHS)
     NUM_ROUNDS = 5
     print(f"##### Analyzing Number of Partitions #####")
     num_partitions_list = [1, 2, 3, 4, 5, 10, 20]
-    # analyze_num_partitions(out_dir, num_partitions_list, num_rounds=NUM_ROUNDS, num_epochs=NUM_EPOCHS)
+    analyze_num_partitions(out_dir, num_partitions_list, num_rounds=NUM_ROUNDS, num_epochs=NUM_EPOCHS)
     NUM_PARTITIONS = 3
     print(f"##### Analyzing Epsilon with Clipping Norm set to 1 #####")
     epsilons = [0.1, 0.5, 1.0, 2.0, 5.0, 10.0]
@@ -273,8 +270,8 @@ def run_quantitive_analysis_simulations(out_dir):
     print("##### Analyzing Clipping Norm #####")
     clipping_norms = [float("inf"), 0.1, 0.5, 1.0, 2.0, 5.0, 10.0]
     analyze_clipping_norms(out_dir, clipping_norms, num_rounds=NUM_ROUNDS, num_epochs=NUM_EPOCHS,
-                           num_partitions=NUM_PARTITIONS,
-                           epsilon=EPSILON)
+                           num_partitions=NUM_PARTITIONS, epsilon=EPSILON)
+
 
 def run_qualitative_analysis_simulations(out_dir):
     # fixed values
@@ -286,8 +283,9 @@ def run_qualitative_analysis_simulations(out_dir):
     baseline_out_dir = f"{out_dir}/baseline"
     clipping_norm = float("inf")
     epsilon = 1e5
-    print(f"Running simulation with epsilon: {epsilon}, clipping norm: {clipping_norm}, num_partitions: {num_partitions}, "
-          f"num_rounds: {num_rounds}, num_epochs: {num_epochs}")
+    print(
+        f"Running simulation with epsilon: {epsilon}, clipping norm: {clipping_norm}, num_partitions: {num_partitions}, "
+        f"num_rounds: {num_rounds}, num_epochs: {num_epochs}")
     run_single_simulation(baseline_out_dir, dp_mode=True, save_model=True, num_partitions=num_partitions,
                           num_rounds=num_rounds, num_epochs=num_epochs, epsilon=epsilon,
                           clipping_norm=clipping_norm)
@@ -296,8 +294,9 @@ def run_qualitative_analysis_simulations(out_dir):
     weak_epsilon_out_dir = f"{out_dir}/weak_epsilon"
     clipping_norm = float("inf")
     epsilon = 10
-    print(f"Running simulation with epsilon: {epsilon}, clipping norm: {clipping_norm}, num_partitions: {num_partitions}, "
-          f"num_rounds: {num_rounds}, num_epochs: {num_epochs}")
+    print(
+        f"Running simulation with epsilon: {epsilon}, clipping norm: {clipping_norm}, num_partitions: {num_partitions}, "
+        f"num_rounds: {num_rounds}, num_epochs: {num_epochs}")
     run_single_simulation(weak_epsilon_out_dir, dp_mode=True, save_model=True, num_partitions=num_partitions,
                           num_rounds=num_rounds, num_epochs=num_epochs, epsilon=epsilon,
                           clipping_norm=clipping_norm)
@@ -306,8 +305,9 @@ def run_qualitative_analysis_simulations(out_dir):
     strong_epsilon_out_dir = f"{out_dir}/strong_epsilon"
     clipping_norm = float("inf")
     epsilon = 0.1
-    print(f"Running simulation with epsilon: {epsilon}, clipping norm: {clipping_norm}, num_partitions: {num_partitions}, "
-          f"num_rounds: {num_rounds}, num_epochs: {num_epochs}")
+    print(
+        f"Running simulation with epsilon: {epsilon}, clipping norm: {clipping_norm}, num_partitions: {num_partitions}, "
+        f"num_rounds: {num_rounds}, num_epochs: {num_epochs}")
     run_single_simulation(strong_epsilon_out_dir, dp_mode=True, save_model=True, num_partitions=num_partitions,
                           num_rounds=num_rounds, num_epochs=num_epochs, epsilon=epsilon,
                           clipping_norm=clipping_norm)
@@ -316,8 +316,9 @@ def run_qualitative_analysis_simulations(out_dir):
     weak_clipping_norm_out_dir = f"{out_dir}/weak_clipping_norm"
     clipping_norm = 25
     epsilon = 1e5
-    print(f"Running simulation with epsilon: {epsilon}, clipping norm: {clipping_norm}, num_partitions: {num_partitions}, "
-          f"num_rounds: {num_rounds}, num_epochs: {num_epochs}")
+    print(
+        f"Running simulation with epsilon: {epsilon}, clipping norm: {clipping_norm}, num_partitions: {num_partitions}, "
+        f"num_rounds: {num_rounds}, num_epochs: {num_epochs}")
     run_single_simulation(weak_clipping_norm_out_dir, dp_mode=True, save_model=True, num_partitions=num_partitions,
                           num_rounds=num_rounds, num_epochs=num_epochs, epsilon=epsilon,
                           clipping_norm=clipping_norm)
@@ -326,8 +327,9 @@ def run_qualitative_analysis_simulations(out_dir):
     strong_clipping_norm_out_dir = f"{out_dir}/strong_clipping_norm"
     clipping_norm = 10
     epsilon = 1e5
-    print(f"Running simulation with epsilon: {epsilon}, clipping norm: {clipping_norm}, num_partitions: {num_partitions}, "
-          f"num_rounds: {num_rounds}, num_epochs: {num_epochs}")
+    print(
+        f"Running simulation with epsilon: {epsilon}, clipping norm: {clipping_norm}, num_partitions: {num_partitions}, "
+        f"num_rounds: {num_rounds}, num_epochs: {num_epochs}")
     run_single_simulation(strong_clipping_norm_out_dir, dp_mode=True, save_model=True, num_partitions=num_partitions,
                           num_rounds=num_rounds, num_epochs=num_epochs, epsilon=epsilon,
                           clipping_norm=clipping_norm)
@@ -336,8 +338,9 @@ def run_qualitative_analysis_simulations(out_dir):
     weak_combination_out_dir = f"{out_dir}/weak_combination"
     clipping_norm = 25
     epsilon = 10
-    print(f"Running simulation with epsilon: {epsilon}, clipping norm: {clipping_norm}, num_partitions: {num_partitions}, "
-          f"num_rounds: {num_rounds}, num_epochs: {num_epochs}")
+    print(
+        f"Running simulation with epsilon: {epsilon}, clipping norm: {clipping_norm}, num_partitions: {num_partitions}, "
+        f"num_rounds: {num_rounds}, num_epochs: {num_epochs}")
     run_single_simulation(weak_combination_out_dir, dp_mode=True, save_model=True, num_partitions=num_partitions,
                           num_rounds=num_rounds, num_epochs=num_epochs, epsilon=epsilon,
                           clipping_norm=clipping_norm)
@@ -346,8 +349,9 @@ def run_qualitative_analysis_simulations(out_dir):
     strong_combination_out_dir = f"{out_dir}/strong_combination"
     clipping_norm = 10
     epsilon = 0.1
-    print(f"Running simulation with epsilon: {epsilon}, clipping norm: {clipping_norm}, num_partitions: {num_partitions}, "
-          f"num_rounds: {num_rounds}, num_epochs: {num_epochs}")
+    print(
+        f"Running simulation with epsilon: {epsilon}, clipping norm: {clipping_norm}, num_partitions: {num_partitions}, "
+        f"num_rounds: {num_rounds}, num_epochs: {num_epochs}")
     run_single_simulation(strong_combination_out_dir, dp_mode=True, save_model=True, num_partitions=num_partitions,
                           num_rounds=num_rounds, num_epochs=num_epochs, epsilon=epsilon,
                           clipping_norm=clipping_norm)
@@ -356,9 +360,6 @@ def run_qualitative_analysis_simulations(out_dir):
 def main(out_dir):
     run_quantitive_analysis_simulations(out_dir)
     run_qualitative_analysis_simulations(out_dir)
-
-
-
 
 
 if __name__ == '__main__':
